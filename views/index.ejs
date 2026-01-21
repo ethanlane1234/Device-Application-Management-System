@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Tree</title>
+    <style>
+        ul {
+            list-style-type: none;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .directory {
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .directory::before {
+            content: '▶ ';
+        }
+        .directory.expanded::before {
+            content: '▼ ';
+        }
+        .directory + ul {
+            display: none;
+        }
+        .directory.expanded + ul {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>File Structure Tree</h1>
+    <ul>
+        <% function renderTree(nodes) { %>
+            <% nodes.forEach(node => { %>
+                <li>
+                    <% if (node.type === 'directory') { %>
+                        <span class="directory toggle"><%= node.name %>/</span>
+                        <ul>
+                            <% renderTree(node.children); %>
+                        </ul>
+                    <% } else { %>
+                        <%= node.name %>
+                    <% } %>
+                </li>
+            <% }); %>
+        <% } %>
+        <% renderTree(tree); %>
+    </ul>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggles = document.querySelectorAll('.toggle');
+            toggles.forEach(toggle => {
+                toggle.addEventListener('click', function() {
+                    this.classList.toggle('expanded');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
