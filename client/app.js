@@ -1,12 +1,9 @@
 import express from 'express';
-import { getFileStructure, getAllFiles, getFileTree } from './app-modules/files.mjs';
+import { Config } from './app-modules/config.mjs';
 
-const app = express();
+console.log("Initalizing Server...");
 
-app.set('view engine', 'ejs');
+const app = express(); // app
+const path = '../../../';
 
-app.get('/', async (req, res) => {
-    res.render('index' , { tree: await getFileTree('../../') });
-});
-
-app.listen(80);
+Config.setup(app, path);
