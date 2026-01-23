@@ -5,6 +5,8 @@ import express from 'express';
  */
 class myServer {
     express: express.Express;
+    clients: client[] = [];
+    client_count: number = 0;
     /**
      * Creates an server instance
      * @param express express application
@@ -20,17 +22,28 @@ class myServer {
     }
     public get() {
         this.express.get('/', (req, res) => {
+            this.client_count++;
             res.send(
                 `
                 <html>
                 <head><title>Server is running</title></head>
                 <body><h1>Server is running</h1></body>
+                You are the <count>${this.client_count}</count>th client to attempt toconnect.
                 </html>
                 `
             );
         });
         
     }
+    /**
+     * DONT RUN THIS ON A NETWORK THAT CARES LIKE THE ONE YOU ARE ON PROBABLY RIGHT NOW.
+     * it looks sus.
+     * @param oct1 
+     * @param oct2 
+     * @param oct3 
+     * @param oct4 
+     * @param port 
+     */
     public scanForClients(oct1: number, oct2: number, oct3:number, oct4:number, port: number) {
         for (let i = oct4;i < 255; i++) {
             const ip = `${oct1}.${oct2}.${oct3}.${i}`;
@@ -123,6 +136,7 @@ class manager {
     }
 }
 import fs from 'fs/promises';
+import { count } from 'console';
 /**
  * Custom minimal database
  */
