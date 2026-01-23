@@ -20,15 +20,37 @@ class myServer {
     public app(): express.Express {
         return this.express;
     }
-    public get() {
-        this.express.get('/', (req, res) => {
+    public async get(text?: string) {
+        this.express.get('/', async (req, res) => {
+            // no duplicate client
+            if (this.clients.find((c) => c.hostname === (req.ip ?? 'unknown').toString())) {
+                res.send(
+                    `
+                    <html>
+                    <head><title>Server is running</title></head>
+                    <body><h1>Server is running</h1></body>
+                    You have already connected as a client.
+                    <ul>
+                    ${this.clients.map((c) => `<li>${c.id} at ${c.hostname}:${c.port}</li>`).join('')}
+                    </ul>
+                    </html>
+                    `
+                );
+                return;
+            }
             this.client_count++;
+            this.clients.push(new client(45697, (req.ip ?? 'unknown').toString(), `client_${this.client_count}`));
             res.send(
                 `
                 <html>
                 <head><title>Server is running</title></head>
                 <body><h1>Server is running</h1></body>
                 You are the <count>${this.client_count}</count>th client to attempt toconnect.
+                ${text ? `<p>${text}</p>` : ''}
+                client list:
+                <ul>
+                ${this.clients.map((c) => `<li>${c.id} at ${c.hostname}:${c.port}</li>`).join('')}
+                </ul>
                 </html>
                 `
             );
@@ -66,10 +88,30 @@ class client {
     id: string;
     port: number;
     hostname: string;
+    server: express.Express;
+    main_server_addr: string = "?";
     constructor(port: number, hostname: string, id:string) {
         this.port = port;
         this.hostname = hostname;
         this.id = id;
+        this.server = express();
+        this.server.get('/', (req, res) => {
+            res.send(`
+            <html>
+            <head><title>Client ${this.id} is running</title></head>
+            <body><h1>Client ${this.id} is running</h1>
+            <ip>${this.hostname}:${this.port}</ip>
+            <reqip>${req.ip ?? 'unknown'}</reqip>
+            </body>
+            </html>
+            `);
+            this.main_server_addr = `http://${req.ip ?? 'unknown'}:${this.port+1}`; // assume server is on port + 1
+        });
+    }
+    public listen() {
+        this.server.listen(this.port, () => {
+            console.log(`Client ${this.id} listening on port ${this.port}`);
+        });
     }
 }
 import os, { networkInterfaces } from 'os';
@@ -114,30 +156,54 @@ class manager {
         this.approved_programs = [];
         this.client_programs = new Map();
     }
+    /**
+     * T
+     * @param program 
+     */
     public approve_program(program: string) {
         this.approved_programs.push(program);
     }
+    /**
+     * T
+     * @param program 
+     */
     public revoke_program(program: string) {
         this.approved_programs = this.approved_programs.filter((p) => p !== program);
     }
+    /**
+     * T
+     * @param program 
+     */
     public assign_program(client_id: string, program: string) {
         if (!this.client_programs.has(client_id)) {
             this.client_programs.set(client_id, []);
         }
         this.client_programs.get(client_id)?.push(program);
     }
+    /**
+     * T
+     * @param program 
+     */
     public get_client_programs(client_id: string): string[] | undefined {
         return this.client_programs.get(client_id);
     }
+    /**
+     * T
+     * @param program 
+     */
     public get_approved_programs(): string[] {
         return this.approved_programs;
     }
+    /**
+     * T
+     * @param program 
+     */
     public is_program_approved(program: string): boolean {
         return this.approved_programs.includes(program);
     }
 }
 import fs from 'fs/promises';
-import { count } from 'console';
+import { stringify } from 'querystring';
 /**
  * Custom minimal database
  */
