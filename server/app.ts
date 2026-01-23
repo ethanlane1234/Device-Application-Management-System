@@ -135,6 +135,9 @@ class entry {
         return `<${this.id}:${this.table}:${Array.isArray(this.data) ? this.data.join("***") : this.data.replaceAll(" ", "***")}>\n`;
     }
 }
+/**
+ * testing stuff
+ */
 async function main() {
     const a = new db('./database.db');
     a.init_schema();
@@ -142,4 +145,6 @@ async function main() {
     await a.store_entry(x);
     console.log(await a.select(""));
 }
-main();
+// main();
+
+module.exports = { myServer, client, manager, db, entry, expressApp };
