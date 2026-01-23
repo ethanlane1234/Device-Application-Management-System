@@ -39,8 +39,32 @@ class client {
  * Mange installed on clients
  */
 class manager {
+    approved_programs: string[];
+    client_programs: Map<string, string[]>;
     constructor() {
-
+        this.approved_programs = [];
+        this.client_programs = new Map();
+    }
+    public approve_program(program: string) {
+        this.approved_programs.push(program);
+    }
+    public revoke_program(program: string) {
+        this.approved_programs = this.approved_programs.filter((p) => p !== program);
+    }
+    public assign_program(client_id: string, program: string) {
+        if (!this.client_programs.has(client_id)) {
+            this.client_programs.set(client_id, []);
+        }
+        this.client_programs.get(client_id)?.push(program);
+    }
+    public get_client_programs(client_id: string): string[] | undefined {
+        return this.client_programs.get(client_id);
+    }
+    public get_approved_programs(): string[] {
+        return this.approved_programs;
+    }
+    public is_program_approved(program: string): boolean {
+        return this.approved_programs.includes(program);
     }
 }
 import fs from 'fs/promises';
@@ -88,7 +112,7 @@ class db {
             const lines = (data || "").split("\n").filter((line) => line.trim().length > 0 && (table ? line.includes(`:${table}:`) : true));
             return lines.map((line) => {
                 const content = line.slice(1, -1).split(":");
-                return new entry(content[0], content[1], content[2].replace("***", " "));
+                return new entry(content[0], content[1], content[2].split("***"));
             });
         });
 
@@ -101,21 +125,21 @@ class db {
 class entry {
     id: string;
     table: string;
-    data: string;
-    constructor(id: string, table: string, data: string) {
+    data: string | string[];
+    constructor(id: string, table: string, data: string | string[]) {
         this.id = id;
         this.table = table;
         this.data = data;
     }
     public as_string() {
-        return `<${this.id}:${this.table}:${this.data.replace(" ", "***")}>\n`;
+        return `<${this.id}:${this.table}:${Array.isArray(this.data) ? this.data.join("***") : this.data.replaceAll(" ", "***")}>\n`;
     }
 }
 async function main() {
     const a = new db('./database.db');
     a.init_schema();
-    const x = new entry("app", "installs", "data2s");
+    const x = new entry("app", "installs", "data2s.sql word.txt beans java script mirror.ts");
     await a.store_entry(x);
-    console.log(await a.select("db_log"));
+    console.log(await a.select(""));
 }
 main();
