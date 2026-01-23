@@ -209,7 +209,7 @@ class entry {
  * testing stuff
  */
 async function main() {
-    const a = new db('./database.db');
+    const a = new db('./.db');
     a.init_schema();
     const x = new entry("app", "installs", "data2s.sql word.txt beans java script mirror.ts");
     await a.store_entry(x);
