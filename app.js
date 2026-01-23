@@ -1,4 +1,4 @@
-import { db, myServer, ipInfo } from './app.js';
+import { db, myServer, ipInfo } from './app.ts';
 
 const server = new myServer(); // abstraction
 const app = server.app(); // express itself
