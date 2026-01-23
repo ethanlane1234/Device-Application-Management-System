@@ -1,25 +1,48 @@
 import express from 'express'; 
 
 /**
- * An class to distinguish an express app from Function type
- */
-class expressApp {
-    express: Function
-    constructor() {
-        this.express = express();
-    }
-}
-/**
  * Server to establish connection to client
  */
 class myServer {
-    app: expressApp;
+    express: express.Express;
     /**
      * Creates an server instance
-     * @param app express application
+     * @param express express application
      */
-    constructor(express: expressApp) {
-        this.app = express;
+    constructor() {
+        this.express = express();
+    }
+    public listen(port: number) {
+        this.express.listen(port);
+    }
+    public app(): express.Express {
+        return this.express;
+    }
+    public get() {
+        this.express.get('/', (req, res) => {
+            res.send(
+                `
+                <html>
+                <head><title>Server is running</title></head>
+                <body><h1>Server is running</h1></body>
+                </html>
+                `
+            );
+        });
+        
+    }
+    public scanForClients(oct1: number, oct2: number, oct3:number, oct4:number, port: number) {
+        for (let i = oct4;i < 255; i++) {
+            const ip = `${oct1}.${oct2}.${oct3}.${i}`;
+            console.log(`Scanning ${ip}:${port}`);
+            fetch(`http://${ip}:${port}/`).then((res) => {
+                if (res.ok) {
+                    console.log(`Client found at ${ip}:${port}`);
+                }
+            }).catch((err) => {
+                console.log(`No client at ${ip}:${port}`);
+            });
+        }
     }
 }
 /**
@@ -35,6 +58,38 @@ class client {
         this.id = id;
     }
 }
+import os, { networkInterfaces } from 'os';
+class ipInfo {
+    ip: string;
+    constructor() {
+        this.ip = this.getDeviceIP();
+    }    
+    private getDeviceIP(): string {
+        const interfaces = networkInterfaces();
+        let x = { address: '', family: '', mac: '', netmask: '' };
+        for (const interfaceName in interfaces) {
+        const addresses = interfaces[interfaceName] || [];
+        addresses.forEach((address) => {
+            if (address.family === 'IPv4' && !address.internal) {
+            x = address;
+            }
+        });
+        }
+        return x.address;
+    }
+    public getLocalPrefix(): number[] {
+        const parts = this.ip.split('.').map((part) => parseInt(part, 10));
+        // 10.0.0.x - 10.255.255.x
+        if (parts[0] === 10) return [parts[0],parts[1], parts[2]]; // [1-2] subnet? (I think thats the word)
+        // 172.16.0.x - 172.31.0.x - 172.16.255.x - 172.31.255.x
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return [parts[0], parts[1], parts[2]]; // [2] subnet? (I think thats the word)
+        // 192.168.x.x
+        if (parts[0] === 192 && parts[1] === 168) return [parts[0], parts[1], parts[2]]; // [2] subnet? (I think thats the word)
+        // error
+        return [0,0,0,0];
+    }
+}
+
 /**
  * Mange installed on clients
  */
@@ -146,5 +201,4 @@ async function main() {
     console.log(await a.select(""));
 }
 // main();
-
-module.exports = { myServer, client, manager, db, entry, expressApp };
+export { myServer, client, manager, db, entry, ipInfo };
