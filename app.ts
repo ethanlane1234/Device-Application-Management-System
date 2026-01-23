@@ -51,6 +51,7 @@ class myServer {
             fetch(`http://${ip}:${port}/`).then((res) => {
                 if (res.ok) {
                     console.log(`Client found at ${ip}:${port}`);
+                    this.clients.push(new client(port, ip, `client_${this.clients.length + 1}`));
                 }
             }).catch((err) => {
                 console.log(`No client at ${ip}:${port}`);
