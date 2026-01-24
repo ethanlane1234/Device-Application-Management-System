@@ -1,4 +1,4 @@
-import express from 'express'; 
+import express from 'express';
 
 /**
  * Server to establish connection to client
@@ -13,6 +13,11 @@ class myServer {
      */
     constructor() {
         this.express = express();
+        this.express.use(express.urlencoded({ extended: true }));
+        this.express.use(express.json());
+        this.express.post('/d', async (req) => {
+            console.log(req.body)
+        });
     }
     public listen(port: number) {
         this.express.listen(port);
@@ -89,10 +94,12 @@ class client {
     port: number;
     hostname: string;
     server: express.Express;
-    main_server_addr: string = "?";
+    main_server_addr: string;
+    manager: manager = new manager();
     constructor(port: number, hostname: string, id:string) {
         this.port = port;
         this.hostname = hostname;
+        this.main_server_addr = `http://${hostname}:${port+1}`;
         this.id = id;
         this.server = express();
         this.server.get('/', (req, res) => {
@@ -113,8 +120,30 @@ class client {
             console.log(`Client ${this.id} listening on port ${this.port}`);
         });
     }
+    public async sendMessageToServer(msg: string) {
+        const data = {
+            client_id: this.id,
+            auth: "reserved for later use",
+            storage: "reserved for later use",
+            msg: msg
+        };
+
+        const params = new URLSearchParams();
+
+        for (const key in data) {
+            params.append(key, (data as unknown as Record<string, string>)[key]); // All values treated as strings
+        }
+        
+        await fetch(`${this.main_server_addr}/d`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: JSON.stringify(data)
+        });
+    }
 }
-import os, { networkInterfaces } from 'os';
+import { networkInterfaces } from 'os';
 class ipInfo {
     ip: string;
     constructor() {
@@ -203,7 +232,6 @@ class manager {
     }
 }
 import fs from 'fs/promises';
-import { stringify } from 'querystring';
 /**
  * Custom minimal database
  */
