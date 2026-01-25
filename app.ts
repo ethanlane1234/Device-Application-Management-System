@@ -43,6 +43,7 @@ class myServer {
                 );
                 return;
             }
+            // TODO make it so that only when a client visits the page does it count as being added
             this.client_count++;
             this.clients.push(new client(45697, (req.ip ?? 'unknown').toString(), `client_${this.client_count}`));
             res.send(
@@ -298,6 +299,41 @@ class entry {
     public as_string() {
         return `<${this.id}:${this.table}:${Array.isArray(this.data) ? this.data.join("***") : this.data.replaceAll(" ", "***")}>\n`;
     }
+}
+import os from 'os';
+/**
+ * class contains functions that gather system information
+ */
+class systemInfo {
+    /**
+     * 
+     * @returns operating system name
+     */
+    public getOS() {
+        return os.type();
+    }
+    /**
+     * 
+     * @returns free memory in bytes
+     */
+    public getFreeMemory() {
+        return os.freemem;
+    }
+    /**
+     * 
+     * @returns total memory in bytes
+     */
+    public getTotalMemory() {
+        return os.totalmem;
+    }
+    /**
+     * Not implemented yet
+     * @returns a message saying its not implemented
+     */
+    public getStorage() {
+        return "not yet implemented";
+    }
+    
 }
 /**
  * testing stuff
