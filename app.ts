@@ -87,6 +87,7 @@ class myServer {
         }
     }
 }
+import { Server } from 'http';
 /**
  * Client to connect to central server
  */
@@ -123,6 +124,7 @@ class client {
             </html>
             `);
             this.main_server_addr = `http://${req.ip ?? 'unknown'}:${this.port+1}`; // assume server is on port + 1
+            this.socket(); // start websocket connection TODO - smart switch to this and remove server
         });
         this.server.get('/sys-info', async (req, res) => {
             res.json(
@@ -191,26 +193,33 @@ class client {
         return new socket(this.main_server_addr);
     }
 }
+/**
+ * Creates a websocket to be used for client - server persistant communications
+ */
 class socket {
     ws: WebSocket;
     constructor(addr: string ) {
         this.ws = new WebSocket(addr.replace('http', 'ws')); // replace http with ws
     }
-    public setUpWS() {
+    /**
+     * 
+     * @param master client | server
+     */
+    public setUpWS(master: string) {
         this.ws.addEventListener('open', event => {
             console.log('WS conn established:', event);
-            this.ws.send('client: Hello Server');
+            this.ws.send(master + ': Hello Server');
         });
         this.ws.addEventListener('close', event => {
             console.log('WS conn closed:', event);
         });
         this.ws.addEventListener('error', event => {
             console.log('WS conn error:', event);
-            this.ws.send('client: error with message');
+            this.ws.send(master + ': error with message');
         });
         this.ws.addEventListener('message', event => {
             console.log('WS message recieved:', event);
-            this.ws.send('client: message recieved');
+            this.ws.send(master + ': message recieved');
         });
     }
 }
@@ -371,8 +380,6 @@ class entry {
     }
 }
 import os from 'os';
-import { Server } from 'http';
-import { error } from 'console';
 /**
  * class contains functions that gather system information
  */
