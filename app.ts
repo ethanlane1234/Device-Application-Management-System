@@ -97,6 +97,15 @@ class client {
     server: express.Express;
     main_server_addr: string;
     manager: manager = new manager();
+    http_server: Server | undefined; // used to close server made by express
+    websocket: socket | undefined; // after conn established use this
+    /**
+     * Setup basic communication protocol between client and server
+     * By default sets up an api for accessing information about a client non persistantly.
+     * @param port assume the server is running at +1 of the port specificied here for the client
+     * @param hostname the hostname of the server
+     * @param id the id of the client
+     */
     constructor(port: number, hostname: string, id:string) {
         this.port = port;
         this.hostname = hostname;
@@ -115,11 +124,43 @@ class client {
             `);
             this.main_server_addr = `http://${req.ip ?? 'unknown'}:${this.port+1}`; // assume server is on port + 1
         });
+        this.server.get('/sys-info', async (req, res) => {
+            res.json(
+                {
+                    memory: {
+                        total: {bytes: systemInfo.getTotalMemory(), gb: systemInfo.getTotalMemory()/ Math.pow(1024, 3)},
+                        free: {bytes: systemInfo.getFreeMemory(), gb: systemInfo.getTotalMemory() / Math.pow(1024, 3)}
+                    },
+                    os:systemInfo.getOS(),
+                    storage:systemInfo.getStorage()
+                }
+            );
+        });
+        this.server.get('/sys-approve-program', async (req, res) => {
+            const programs = req.body.program;
+            programs.forEach((element: string) => {
+                this.manager.approve_program(element);
+            });
+        });
+        this.server.get('/sys-directive', async (req, res) => {
+            // start execution of logic
+        });
     }
+    /**
+     * @returns returns the http server created by listen
+     */
     public listen() {
-        this.server.listen(this.port, () => {
+        return this.server.listen(this.port, () => {
             console.log(`Client ${this.id} listening on port ${this.port}`);
         });
+    }
+    /**
+     * Calling this will make the sys-info api unavaible 
+     * (the server should be replaced with a websockets connection)
+     * Closes the server if the server was open to begin with.
+     */
+    public close() {
+        this.http_server?.close();
     }
     public async sendMessageToServer(msg: string) {
         const data = {
@@ -141,6 +182,35 @@ class client {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
             body: JSON.stringify(data)
+        });
+    }
+    /**
+     * Start up websocket connection
+     */
+    public socket() {
+        return new socket(this.main_server_addr);
+    }
+}
+class socket {
+    ws: WebSocket;
+    constructor(addr: string ) {
+        this.ws = new WebSocket(addr.replace('http', 'ws')); // replace http with ws
+    }
+    public setUpWS() {
+        this.ws.addEventListener('open', event => {
+            console.log('WS conn established:', event);
+            this.ws.send('client: Hello Server');
+        });
+        this.ws.addEventListener('close', event => {
+            console.log('WS conn closed:', event);
+        });
+        this.ws.addEventListener('error', event => {
+            console.log('WS conn error:', event);
+            this.ws.send('client: error with message');
+        });
+        this.ws.addEventListener('message', event => {
+            console.log('WS message recieved:', event);
+            this.ws.send('client: message recieved');
         });
     }
 }
@@ -301,6 +371,8 @@ class entry {
     }
 }
 import os from 'os';
+import { Server } from 'http';
+import { error } from 'console';
 /**
  * class contains functions that gather system information
  */
@@ -309,28 +381,28 @@ class systemInfo {
      * 
      * @returns operating system name
      */
-    public getOS() {
+    public static getOS() {
         return os.type();
     }
     /**
      * 
      * @returns free memory in bytes
      */
-    public getFreeMemory() {
+    public static getFreeMemory() {
         return os.freemem();
     }
     /**
      * 
      * @returns total memory in bytes
      */
-    public getTotalMemory() {
+    public static getTotalMemory() {
         return os.totalmem();
     }
     /**
      * Not implemented yet
      * @returns a message saying its not implemented
      */
-    public getStorage() {
+    public static getStorage() {
         return "not yet implemented";
     }
     
