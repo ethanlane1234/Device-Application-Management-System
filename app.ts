@@ -317,14 +317,14 @@ class systemInfo {
      * @returns free memory in bytes
      */
     public getFreeMemory() {
-        return os.freemem;
+        return os.freemem();
     }
     /**
      * 
      * @returns total memory in bytes
      */
     public getTotalMemory() {
-        return os.totalmem;
+        return os.totalmem();
     }
     /**
      * Not implemented yet
