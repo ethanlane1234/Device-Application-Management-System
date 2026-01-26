@@ -13,7 +13,7 @@
   },
   "files": [
     "app.ts",
-    "./exported_scripts/client.js",
-    "./exported_scripts/server.js"
+    "stubs/client.js",
+    "stubs/server.js"
   ]
 }

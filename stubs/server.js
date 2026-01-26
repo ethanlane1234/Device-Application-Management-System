@@ -1,4 +1,4 @@
-import { db, myServer, ipInfo, client } from '../app.js';
+import { db, myServer, ipInfo, client } from '../app.ts';
 
 const PORT = 45698;
 const server = new myServer(PORT); // abstraction
