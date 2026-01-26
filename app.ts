@@ -551,11 +551,51 @@ class systemInfo {
         }
     }
 }
+import { input, select } from '@inquirer/prompts';
 /**
  * Wizard for setting up environment
  */
 class setupHelper {
-    
+    public static async fastSetupCLI() {
+        const $type = await select({
+        message: 'Choose Wether this is a client device or the server:',
+        choices: [
+            {
+            name: 'Client Device',
+            value: '--client',
+            description: 'Managed by server'
+            },
+            {
+            name: 'Server Device',
+            value: '--server',
+            description: 'Manages client devices'
+            }
+        ],
+        });
+        const $question1 = $type === '--client' ?
+        await select({
+        message: 'Choose wether you know the IP of the device the server is hosted on:',
+        choices: [
+            {
+            name: 'Yes',
+            value: 'Y',
+            description: 'yes'
+            },
+            {
+            name: 'No',
+            value: 'N',
+            description: 'no'
+            }
+        ],
+        }) : null;
+        const $url = $question1 === 'Y' ? await input({ message: 'Enter the hostname/IP of server' }): null ;
+        await fs.writeFile('./app-config.json', JSON.stringify(
+            {
+                type: $type,
+                url: $url
+            }
+        ));
+    }
 }
 /**
  * Start Quick Application Managemetn System (QAMS)
@@ -564,16 +604,25 @@ class setupHelper {
  * (if both --server and --client are present, --server superceeds --client)
  * @argument --config (runs setup wizard superceeding all above arguments)
  */
-async function main() {
-    process.argv.includes('--server') ? host_server() : host_client();
+function main() {
+    if (process.argv.includes('--config')) {
+        run_setup_wizard();
+        return ;
+    }
+    run();
+    return ;
 }
-async function host_client() {
+function run() {
+    process.argv.includes('--server') ? host_server() : host_client();
+    return ;
+}
+function host_client() {
     const PORT = 45697; // should be one less than server port
     // client
     const client_device = new client(PORT, "localhost", "localhost");
     const http_server = client_device.listen(); // get the underlying http server
 }
-async function host_server() {
+function host_server() {
     const PORT = 45698;
     const server = new myServer(PORT); // abstraction
     const app = server.app(); // express itself
@@ -586,6 +635,18 @@ async function host_server() {
     // server.scanForClients(IP_SCAN_RANGE[0], IP_SCAN_RANGE[1], IP_SCAN_RANGE[2], 1, PORT);
 
     server.listen(PORT);
+}
+import { readFileSync } from 'fs';
+async function run_setup_wizard() {
+    if (process.argv.includes('--qs')) {
+        await setupHelper.fastSetupCLI(); 
+        console.log('app initalized...');
+        const data = JSON.parse(readFileSync('./app-config.json', 'utf8'));
+        console.log(data.type);
+        process.argv.push(data.type);
+        run();
+    }
+    return ;
 }
 main(); // run application
 export { myServer, client, manager, db, entry, ipInfo };
