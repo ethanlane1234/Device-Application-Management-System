@@ -552,10 +552,20 @@ class systemInfo {
     }
 }
 /**
- * testing stuff
+ * Wizard for setting up environment
+ */
+class setupHelper {
+    
+}
+/**
+ * Start Quick Application Managemetn System (QAMS)
+ * @argument --server (runs server application)
+ * @argument --client (runs client application. This is enabled by default)
+ * (if both --server and --client are present, --server superceeds --client)
+ * @argument --config (runs setup wizard superceeding all above arguments)
  */
 async function main() {
-    
+    process.argv.includes('--server') ? host_server() : host_client();
 }
 async function host_client() {
     const PORT = 45697; // should be one less than server port
@@ -577,5 +587,5 @@ async function host_server() {
 
     server.listen(PORT);
 }
-// main();
+main(); // run application
 export { myServer, client, manager, db, entry, ipInfo };

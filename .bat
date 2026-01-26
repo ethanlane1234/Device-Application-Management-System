@@ -1,2 +1,2 @@
-start cmd /k "node server.js"
-start cmd /k "node client.js"
+start cmd /k "node app.ts --server"
+start cmd /k "node app.ts --client"
