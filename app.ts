@@ -9,6 +9,7 @@ class myServer {
     client_count: number = 0;
     wss: WebSocketServer | undefined; // webSocketServer
     port: number;
+    db: db = new db('./.db');
     /**
      * Creates an server instance
      * @param express express application
@@ -21,6 +22,10 @@ class myServer {
         this.express.post('/d', async (req) => {
             console.log(req.body)
         });
+        // init db
+        this.db.init_schema();
+        const line: entry = new entry("server_id", "db_log","init_server");
+        this.db.store_entry(line);
     }
     public listen(port: number) {
         const server = this.express.listen(port);
@@ -30,6 +35,8 @@ class myServer {
         return this.express;
     }
     private setUpWSS(server: Server) {
+        // store vars to access in wss
+        const db = this.db;
         // setup webSocket Server
         this.wss = new WebSocketServer({server})
         this.wss.on('connection', function connection(ws) {
@@ -38,7 +45,9 @@ class myServer {
                 try {
                     const message = JSON.parse(data);
                     // TODO - insert logic here about validating data
+                    const programs: entry = new entry(message.client_id, message.table, JSON.stringify(message));
                     console.dir(message, { depth: null });
+                    db.store_entry(programs);                    
                 } catch (error) {
                     console.log('recieved data but failed to parse as JSON: %s', data);
                 }
@@ -261,14 +270,14 @@ class socket {
     public setUpWS(client_id: string) {
         this.ws.addEventListener('open', (event: any) => {
             console.log('WS conn established!');
-            this.ws.send(JSON.stringify({message: "Hello Server"}));
+            this.ws.send(JSON.stringify({client_id: client_id, table:"hello", message: "Hello Server", sys:"VOID", data:"VOID"}));
         });
         this.ws.addEventListener('close', (event: any) => {
             console.log('WS conn closed:', event.code, event.reason);
         });
         this.ws.addEventListener('error', (error: any) => {
             console.log('WS conn error:', error);
-            this.ws.send(JSON.stringify({message: "Error with message", recieved:error}));
+            this.ws.send(JSON.stringify({client_id: client_id, table:"error", message: "Error with message", sys:"VOID", data: error}));
         });
         this.ws.addEventListener('message', async (event: any) => {
             try {
@@ -278,7 +287,8 @@ class socket {
                 const installed_programs = await systemInfo.getInstalledPrograms()
                 this.ws.send(JSON.stringify(
                     {
-                        client_id: client_id,
+                        client_id: client_id, 
+                        table:"programs",
                         time: new Date().toISOString(),
                         message: 'Periodic-Update-response',
                         sys:{
@@ -287,9 +297,9 @@ class socket {
                             free: {bytes: systemInfo.getFreeMemory(), gb: systemInfo.getTotalMemory() / Math.pow(1024, 3)},
                             os:systemInfo.getOS(),
                             storage:systemInfo.getStorage()
+                            },
                         },
                         data: installed_programs
-                        }
                     }
                 ));
             } catch (error) {
@@ -428,8 +438,23 @@ class db {
         // load file
         await this.loadFile();
         // insertition logic
-        this.payload = this.payload.replaceAll(line.as_string(), ""); // remove dups
-        this.payload += line.as_string(); // add entry
+        let newFile = "";
+        const key = line.as_key();
+
+        const lines = this.payload
+            .split(/\r?\n/)
+            .map(l => l.trim())
+            .filter(l => l.length > 0); // remove empties
+
+        for (const l of lines) {
+            const line_key = l.split(":").slice(0,2).join(":") + ":";
+            if (line_key !== key) {
+                newFile += l + "\r\n";
+            }
+        }
+
+        newFile += line.as_string(); // already ends with newline
+        this.payload = newFile; // replace file with updated values
         // commit changes
         await this.commit_entry();
     }
@@ -470,8 +495,11 @@ class entry {
         this.table = table;
         this.data = data;
     }
-    public as_string() {
+    public as_string(): string {
         return `<${this.id}:${this.table}:${Array.isArray(this.data) ? this.data.join("***") : this.data.replaceAll(" ", "***")}>\n`;
+    }
+    public as_key(): string {
+        return `<${this.id}:${this.table}:`;
     }
 }
 import os from 'os';
@@ -628,15 +656,17 @@ class setupHelper {
      * placeholder for setup with more options and buttons to customize (lot of control)
      * WORK IN PROGRESS
      */
-    public static advancedSetupCLI() {
-
+    public static async advancedSetupCLI() {
+        const config_values = await this.setUpCLI(0);
+        this.write(config_values?.type, config_values?.url);        
     }
     /**
      * place holder until until I get to having an interface to set all possible options (full control)
      * WORK IN PROGRESS
      */
-    public static manualSetupCLI() {
-
+    public static async manualSetupCLI() {
+        const config_values = await this.setUpCLI(0);
+        this.write(config_values?.type, config_values?.url);
     }
 }
 /**
@@ -674,7 +704,6 @@ function host_server() {
     const PORT = 45698;
     const server = new myServer(PORT); // abstraction
     const app = server.app(); // express itself
-    const database = new db('./database.db'); // database
     
     server.get("cool beans");
     // scan for clients
@@ -720,14 +749,14 @@ async function run_setup_wizard() {
     }
     if (process.argv.includes('--ms')) {
         // setup CLI
-        await setupHelper.manualSetupCLI(); 
+        await setupHelper.manualSetupCLI();
         console.log('app initalized...');
         const data = JSON.parse(readFileSync('./app-config.json', 'utf8'));
         // push args to argv
         Object.entries(data).forEach((el: [string, unknown], a: number) => {
             process.argv.push(String(el[1]));
        });
-       console.log(process.argv)
+       console.log(process.argv);
        // run application
        run();
     }
