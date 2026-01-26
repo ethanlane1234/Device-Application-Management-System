@@ -1,9 +1,10 @@
 import { db, myServer, ipInfo, client } from './app.ts';
 
-const server = new myServer(); // abstraction
+const PORT = 45698;
+const server = new myServer(PORT); // abstraction
 const app = server.app(); // express itself
 const database = new db('./database.db'); // database
-const PORT = 45698;
+
 
 server.get("cool beans");
 // scan for clients

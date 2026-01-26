@@ -1,5 +1,5 @@
 import express from 'express';
-
+import WebSocket, { WebSocketServer } from 'ws';
 /**
  * Server to establish connection to client
  */
@@ -7,11 +7,14 @@ class myServer {
     express: express.Express;
     clients: client[] = [];
     client_count: number = 0;
+    wss: WebSocketServer | undefined; // webSocketServer
+    port: number;
     /**
      * Creates an server instance
      * @param express express application
      */
-    constructor() {
+    constructor(port: number) {
+        this.port = port;
         this.express = express();
         this.express.use(express.urlencoded({ extended: true }));
         this.express.use(express.json());
@@ -20,10 +23,34 @@ class myServer {
         });
     }
     public listen(port: number) {
-        this.express.listen(port);
-    }
+        const server = this.express.listen(port);
+        this.setUpWSS(server); // setup WSS using server made by express
+        }
     public app(): express.Express {
         return this.express;
+    }
+    private setUpWSS(server: Server) {
+        // setup webSocket Server
+        this.wss = new WebSocketServer({server})
+        this.wss.on('connection', function connection(ws) {
+            ws.on('error', console.error);
+            ws.on('message', function message(data: any) {
+                console.log('recieved %s', data);
+            });
+            ws.send('something');
+            
+            const intervalId = setInterval(() => {
+                ws.send(JSON.stringify({ time: new Date().toISOString(), message: 'Periodic Update' }));
+            }, 5000);
+
+            ws.on('close', (event: any) => {
+                console.log('client disconnected');
+                clearInterval(intervalId);
+            });
+        });
+    }
+    public getWSS() {
+        return this.wss;
     }
     public async get(text?: string) {
         this.express.get('/', async (req, res) => {
@@ -45,7 +72,7 @@ class myServer {
             }
             // TODO make it so that only when a client visits the page does it count as being added
             this.client_count++;
-            this.clients.push(new client(45697, (req.ip ?? 'unknown').toString(), `client_${this.client_count}`));
+            this.clients.push(new client(this.port-1, (req.ip ?? 'unknown').toString(), `client_${this.client_count}`));
             res.send(
                 `
                 <html>
@@ -100,6 +127,7 @@ class client {
     manager: manager = new manager();
     http_server: Server | undefined; // used to close server made by express
     websocket: socket | undefined; // after conn established use this
+    found: boolean = false;
     /**
      * Setup basic communication protocol between client and server
      * By default sets up an api for accessing information about a client non persistantly.
@@ -113,7 +141,13 @@ class client {
         this.main_server_addr = `http://${hostname}:${port+1}`;
         this.id = id;
         this.server = express();
+        this.found = this.hostname ? true : false;
+        if (this.found) {
+            this.socket();
+            return; // don't setup server if main server found
+        }
         this.server.get('/', (req, res) => {
+            if (this.found) return; // dont send if already found
             res.send(`
             <html>
             <head><title>Client ${this.id} is running</title></head>
@@ -123,8 +157,11 @@ class client {
             </body>
             </html>
             `);
-            this.main_server_addr = `http://${req.ip ?? 'unknown'}:${this.port+1}`; // assume server is on port + 1
-            this.socket(); // start websocket connection TODO - smart switch to this and remove server
+            this.hostname = req.ip ?? "";
+            this.main_server_addr = `http://${this.hostname ?? 'unknown'}:${this.port+1}`; // assume server is on port + 1
+            this.found = true; // TODO - add validation that it was found by our server and not something else
+            this.close();
+            this.socket();
         });
         this.server.get('/sys-info', async (req, res) => {
             res.json(
@@ -190,7 +227,8 @@ class client {
      * Start up websocket connection
      */
     public socket() {
-        return new socket(this.main_server_addr);
+        this.websocket = new socket(this.hostname, this.port+1); // assume sever is at port + 1
+        this.websocket.setUpWS("c");
     }
 }
 /**
@@ -198,32 +236,54 @@ class client {
  */
 class socket {
     ws: WebSocket;
-    constructor(addr: string ) {
-        this.ws = new WebSocket(addr.replace('http', 'ws')); // replace http with ws
+    constructor(addr: string, port: number ) {
+        const url = ipInfo.formatHostForWS(addr, port);
+        console.log(url);
+        this.ws = new WebSocket(url); // replace http with ws
     }
     /**
      * 
-     * @param master client | server
+     * @param master c=client | s=server
      */
     public setUpWS(master: string) {
-        this.ws.addEventListener('open', event => {
-            console.log('WS conn established:', event);
-            this.ws.send(master + ': Hello Server');
+        this.ws.addEventListener('open', (event: any) => {
+            console.log('WS conn established!');
+            this.ws.send(JSON.stringify({message: "Hello Server"}));
         });
-        this.ws.addEventListener('close', event => {
-            console.log('WS conn closed:', event);
+        this.ws.addEventListener('close', (event: any) => {
+            console.log('WS conn closed:', event.code, event.reason);
         });
-        this.ws.addEventListener('error', event => {
-            console.log('WS conn error:', event);
-            this.ws.send(master + ': error with message');
+        this.ws.addEventListener('error', (error: any) => {
+            console.log('WS conn error:', error);
+            this.ws.send(JSON.stringify({message: "Error with message", recieved:error}));
         });
-        this.ws.addEventListener('message', event => {
-            console.log('WS message recieved:', event);
-            this.ws.send(master + ': message recieved');
+        this.ws.addEventListener('message', (event: any) => {
+            try {
+                const message = JSON.parse(event.data);
+                console.log('WS message recieved:', message);
+                if (message.message === 'Periodic-Update') throw error; // not a periodic update request
+                this.ws.send(JSON.stringify({ time: new Date().toISOString(),
+                    message: 'Periodic-Update-response',
+                    data:{
+                        memory: {
+                        total: {bytes: systemInfo.getTotalMemory(), gb: systemInfo.getTotalMemory()/ Math.pow(1024, 3)},
+                        free: {bytes: systemInfo.getFreeMemory(), gb: systemInfo.getTotalMemory() / Math.pow(1024, 3)}
+                    },
+                    os:systemInfo.getOS(),
+                    storage:systemInfo.getStorage()
+                    }
+                }));
+            } catch (error) {
+                console.log('WS message recieved, but failed to validate:', event.data);
+            } 
         });
+    }
+    public getWS() {
+        return this.ws;
     }
 }
 import { networkInterfaces } from 'os';
+import net from 'net';
 class ipInfo {
     ip: string;
     constructor() {
@@ -253,6 +313,12 @@ class ipInfo {
         // error
         return [0,0,0,0];
     }
+    static formatHostForWS(addr: string, port: number) {
+    if (net.isIPv6(addr)) {
+        return `ws://[${addr}]:${port}`;
+    }
+    return `ws://${addr}:${port}`;
+}
 }
 
 /**
@@ -380,6 +446,7 @@ class entry {
     }
 }
 import os from 'os';
+import { error } from 'console';
 /**
  * class contains functions that gather system information
  */
