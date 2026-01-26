@@ -684,7 +684,7 @@ function host_server() {
 
     server.listen(PORT);
 }
-import { readFileSync, write } from 'fs';
+import { readFileSync } from 'fs';
 /**
  * Configures setup application setup through interfaces
  * pushing agruments into argv to modify application behavior
