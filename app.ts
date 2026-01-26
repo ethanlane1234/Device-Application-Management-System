@@ -46,7 +46,7 @@ class myServer {
                     const message = JSON.parse(data);
                     // TODO - insert logic here about validating data
                     const programs: entry = new entry(message.client_id, message.table, JSON.stringify(message));
-                    console.dir(message, { depth: null });
+                    console.log("message recieved for table %s", message.table);
                     db.store_entry(programs);                    
                 } catch (error) {
                     console.log('recieved data but failed to parse as JSON: %s', data);
