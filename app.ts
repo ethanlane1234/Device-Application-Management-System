@@ -35,9 +35,15 @@ class myServer {
         this.wss.on('connection', function connection(ws) {
             ws.on('error', console.error);
             ws.on('message', function message(data: any) {
-                console.log('recieved %s', data);
+                try {
+                    const message = JSON.parse(data);
+                    // TODO - insert logic here about validating data
+                    console.dir(message, { depth: null });
+                } catch (error) {
+                    console.log('recieved data but failed to parse as JSON: %s', data);
+                }
             });
-            ws.send('something');
+            ws.send(JSON.stringify({ message: 'something'}));
             
             const intervalId = setInterval(() => {
                 ws.send(JSON.stringify({ time: new Date().toISOString(), message: 'Periodic Update' }));
@@ -186,6 +192,12 @@ class client {
         });
     }
     /**
+     * @returns returns the manager instance for this client
+     */
+    public getManager() {
+        return this.manager;
+    }
+    /**
      * @returns returns the http server created by listen
      */
     public listen() {
@@ -228,9 +240,10 @@ class client {
      */
     public socket() {
         this.websocket = new socket(this.hostname, this.port+1); // assume sever is at port + 1
-        this.websocket.setUpWS("c");
+        this.websocket.setUpWS(this.id);
     }
 }
+import { error } from 'console';
 /**
  * Creates a websocket to be used for client - server persistant communications
  */
@@ -243,9 +256,9 @@ class socket {
     }
     /**
      * 
-     * @param master c=client | s=server
+     * @param client_id
      */
-    public setUpWS(master: string) {
+    public setUpWS(client_id: string) {
         this.ws.addEventListener('open', (event: any) => {
             console.log('WS conn established!');
             this.ws.send(JSON.stringify({message: "Hello Server"}));
@@ -257,22 +270,28 @@ class socket {
             console.log('WS conn error:', error);
             this.ws.send(JSON.stringify({message: "Error with message", recieved:error}));
         });
-        this.ws.addEventListener('message', (event: any) => {
+        this.ws.addEventListener('message', async (event: any) => {
             try {
                 const message = JSON.parse(event.data);
                 console.log('WS message recieved:', message);
                 if (message.message === 'Periodic-Update') throw error; // not a periodic update request
-                this.ws.send(JSON.stringify({ time: new Date().toISOString(),
-                    message: 'Periodic-Update-response',
-                    data:{
-                        memory: {
-                        total: {bytes: systemInfo.getTotalMemory(), gb: systemInfo.getTotalMemory()/ Math.pow(1024, 3)},
-                        free: {bytes: systemInfo.getFreeMemory(), gb: systemInfo.getTotalMemory() / Math.pow(1024, 3)}
-                    },
-                    os:systemInfo.getOS(),
-                    storage:systemInfo.getStorage()
+                const installed_programs = await systemInfo.getInstalledPrograms()
+                this.ws.send(JSON.stringify(
+                    {
+                        client_id: client_id,
+                        time: new Date().toISOString(),
+                        message: 'Periodic-Update-response',
+                        sys:{
+                            memory: {
+                            total: {bytes: systemInfo.getTotalMemory(), gb: systemInfo.getTotalMemory()/ Math.pow(1024, 3)},
+                            free: {bytes: systemInfo.getFreeMemory(), gb: systemInfo.getTotalMemory() / Math.pow(1024, 3)},
+                            os:systemInfo.getOS(),
+                            storage:systemInfo.getStorage()
+                        },
+                        data: installed_programs
+                        }
                     }
-                }));
+                ));
             } catch (error) {
                 console.log('WS message recieved, but failed to validate:', event.data);
             } 
@@ -446,11 +465,22 @@ class entry {
     }
 }
 import os from 'os';
-import { error } from 'console';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
+interface InstalledProgram {
+    key: string;
+    DisplayName?: string;
+    DisplayVersion?: string;
+    Publisher?: string;
+    InstallLocation?: string;
+    [key: string]: string | undefined;
+}
 /**
  * class contains functions that gather system information
  */
 class systemInfo {
+    
     /**
      * 
      * @returns operating system name
@@ -479,17 +509,73 @@ class systemInfo {
     public static getStorage() {
         return "not yet implemented";
     }
-    
+    /**
+     * 
+     */
+    public static async getInstalledPrograms(): Promise<InstalledProgram[]> {
+        try {
+            const { stdout } = await execAsync(
+                'reg query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall /s'
+            );
+
+            const blocks = stdout
+                .split(/\r?\n\r?\n/)     // split by blank lines
+                .map(b => b.trim())
+                .filter(b => b.length > 0);
+
+            const programs: InstalledProgram[] = [];
+
+            for (const block of blocks) {
+                const lines = block.split(/\r?\n/);
+
+                const entry: InstalledProgram = { key: lines[0] };
+
+                for (const line of lines.slice(1)) {
+                    const match = line.trim().match(/^(\S+)\s+REG_\S+\s+(.*)$/);
+                    if (match) {
+                        const [, name, value] = match;
+                        entry[name] = value;
+                    }
+                }
+
+                if (entry.DisplayName) {
+                    programs.push(entry);
+                }
+            }
+
+            return programs;
+
+        } catch (err) {
+            console.error("Failed to read installed programs:", err);
+            return [];
+        }
+    }
 }
 /**
  * testing stuff
  */
 async function main() {
-    const a = new db('./.db');
-    a.init_schema();
-    const x = new entry("app", "installs", "data2s.sql word.txt beans java script mirror.ts");
-    await a.store_entry(x);
-    console.log(await a.select(""));
+    
+}
+async function host_client() {
+    const PORT = 45697; // should be one less than server port
+    // client
+    const client_device = new client(PORT, "localhost", "localhost");
+    const http_server = client_device.listen(); // get the underlying http server
+}
+async function host_server() {
+    const PORT = 45698;
+    const server = new myServer(PORT); // abstraction
+    const app = server.app(); // express itself
+    const database = new db('./database.db'); // database
+    
+    server.get("cool beans");
+    // scan for clients
+    const IP_SCAN_RANGE = new ipInfo().getLocalPrefix();
+    console.log(`address in block ${IP_SCAN_RANGE[0]}.${IP_SCAN_RANGE[1]}.${IP_SCAN_RANGE[2]}.1 - 255`);
+    // server.scanForClients(IP_SCAN_RANGE[0], IP_SCAN_RANGE[1], IP_SCAN_RANGE[2], 1, PORT);
+
+    server.listen(PORT);
 }
 // main();
 export { myServer, client, manager, db, entry, ipInfo };

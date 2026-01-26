@@ -1,4 +1,4 @@
-import { client } from "./app.ts";
+import { client } from "../app.ts";
 
 
 const PORT = 45697; // should be one less than server port
