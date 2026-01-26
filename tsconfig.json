@@ -10,6 +10,7 @@
     "allowJs": true,
     "outDir": "./compiled",
     "esModuleInterop": true,
+    "lib": ["ES2022"]
   },
   "files": [
     "app.ts",
