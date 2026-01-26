@@ -321,6 +321,10 @@ class ipInfo {
         }
         return x.address;
     }
+    /**
+     * Attempts to find the local IP prefix for the network the server is on.
+     * @returns 
+     */
     public getLocalPrefix(): number[] {
         const parts = this.ip.split('.').map((part) => parseInt(part, 10));
         // 10.0.0.x - 10.255.255.x
@@ -332,6 +336,12 @@ class ipInfo {
         // error
         return [0,0,0,0];
     }
+    /**
+     * formats a proper websocket address for both IPv4 and IPv6
+     * @param addr 
+     * @param port 
+     * @returns websocket address
+     */
     static formatHostForWS(addr: string, port: number) {
     if (net.isIPv6(addr)) {
         return `ws://[${addr}]:${port}`;
@@ -510,7 +520,8 @@ class systemInfo {
         return "not yet implemented";
     }
     /**
-     * 
+     * gets installed programs 
+     * (NOTE - this only works for windows devices)
      */
     public static async getInstalledPrograms(): Promise<InstalledProgram[]> {
         try {
@@ -556,7 +567,10 @@ import { input, select } from '@inquirer/prompts';
  * Wizard for setting up environment
  */
 class setupHelper {
-    public static async fastSetupCLI() {
+    private static async setUpCLI(level: number) {
+        // cancel
+        if (level < 0) return {type:"", url: ""};
+        // quick setup
         const $type = await select({
         message: 'Choose Wether this is a client device or the server:',
         choices: [
@@ -587,14 +601,42 @@ class setupHelper {
             description: 'no'
             }
         ],
-        }) : null;
-        const $url = $question1 === 'Y' ? await input({ message: 'Enter the hostname/IP of server' }): null ;
+        }) : "";
+        const $url = $question1 === 'Y' ? await input({ message: 'Enter the hostname/IP of server' }): "" ;
+        if (level < 1) return {type: $type, url:$url};
+        // advanced setup
+        if (level < 2) return {type: $type, url:$url};
+        // manual setup
+    }
+    private static async write($type?: string, $url?:string) {
         await fs.writeFile('./app-config.json', JSON.stringify(
             {
                 type: $type,
                 url: $url
             }
         ));
+    }
+    /**
+     * Quick option for minimal setup and fastest setup (mostly automated)
+     * WORK IN PROGRESS
+     */
+    public static async fastSetupCLI() {
+        const config_values = await this.setUpCLI(0);
+        this.write(config_values?.type, config_values?.url);
+    }
+    /**
+     * placeholder for setup with more options and buttons to customize (lot of control)
+     * WORK IN PROGRESS
+     */
+    public static advancedSetupCLI() {
+
+    }
+    /**
+     * place holder until until I get to having an interface to set all possible options (full control)
+     * WORK IN PROGRESS
+     */
+    public static manualSetupCLI() {
+
     }
 }
 /**
@@ -616,12 +658,18 @@ function run() {
     process.argv.includes('--server') ? host_server() : host_client();
     return ;
 }
+/**
+ * Runs application as a client
+ */
 function host_client() {
     const PORT = 45697; // should be one less than server port
     // client
     const client_device = new client(PORT, "localhost", "localhost");
     const http_server = client_device.listen(); // get the underlying http server
 }
+/**
+ * Runs application as a server
+ */
 function host_server() {
     const PORT = 45698;
     const server = new myServer(PORT); // abstraction
@@ -636,15 +684,52 @@ function host_server() {
 
     server.listen(PORT);
 }
-import { readFileSync } from 'fs';
+import { readFileSync, write } from 'fs';
+/**
+ * Configures setup application setup through interfaces
+ * pushing agruments into argv to modify application behavior
+ * (so user does not have to interact with the code or type arguments manually)
+ * @returns void
+ */
 async function run_setup_wizard() {
     if (process.argv.includes('--qs')) {
+        // setup CLI
         await setupHelper.fastSetupCLI(); 
         console.log('app initalized...');
         const data = JSON.parse(readFileSync('./app-config.json', 'utf8'));
-        console.log(data.type);
-        process.argv.push(data.type);
+        // push args to argv
+        Object.entries(data).forEach((el: [string, unknown], a: number) => {
+            process.argv.push(String(el[1]));
+       });
+       console.log(process.argv)
+       // run application
         run();
+    }
+    if (process.argv.includes('--as')) {
+        // setup CLI
+        await setupHelper.advancedSetupCLI(); 
+        console.log('app initalized...');
+        const data = JSON.parse(readFileSync('./app-config.json', 'utf8'));
+        // push args to argv
+        Object.entries(data).forEach((el: [string, unknown], a: number) => {
+            process.argv.push(String(el[1]));
+        });
+       console.log(process.argv)
+       // run application
+       run();
+    }
+    if (process.argv.includes('--ms')) {
+        // setup CLI
+        await setupHelper.manualSetupCLI(); 
+        console.log('app initalized...');
+        const data = JSON.parse(readFileSync('./app-config.json', 'utf8'));
+        // push args to argv
+        Object.entries(data).forEach((el: [string, unknown], a: number) => {
+            process.argv.push(String(el[1]));
+       });
+       console.log(process.argv)
+       // run application
+       run();
     }
     return ;
 }
