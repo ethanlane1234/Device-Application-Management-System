@@ -837,16 +837,16 @@ function run() {
     const ARGS = argParser.parseArgs();
     console.log(ARGS)
     // server args
-    const SERVER_PORT: number = parseInt(ARGS.port) || 45698;
-    const SERVER_HOSTNAME: string = ARGS.server_hostname || "localhost";
-    const SERVER_STARTUP_MSG: string = ARGS.start_server_msg || "cool beans";
-    const SCAN_FOR_CLIENTS: boolean = ARGS.port_scan_for_clients ? true : false;
-    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(ARGS.periodic_update_time_msec) || 5000; // NYI
+    const SERVER_PORT: number = parseInt(String(ARGS.port)) || 45698;
+    const SERVER_HOSTNAME: string = String(ARGS.server_hostname) || "localhost";
+    const SERVER_STARTUP_MSG: string = String(ARGS.start_server_msg) || "cool beans";
+    const SCAN_FOR_CLIENTS: boolean = ARGS["port_scan_for_clients"] ? true : false;
+    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(String(ARGS.periodic_update_time_msec)) || 5000; // NYI
     const DUO_MODE: boolean = ARGS["--duo_mode"] ? true : false; // NYI
 
     // client args
-    const CLIENT_PORT = parseInt(ARGS.client_port) || 45697;
-    const CLIENT_HOSTNAME = ARGS.client_hostname || "localhost";
+    const CLIENT_PORT = parseInt(String(ARGS.client_port)) || 45697;
+    const CLIENT_HOSTNAME = ARGS.client_hostname || "";
     const CLIENT_ID = ARGS.client_id || ipInfo.getIP() || "localhost";
     
     // launch application
@@ -885,9 +885,9 @@ function host_server(server_port: number, server_hostname: string, server_startu
     }
     // start listening for conns to server
     server.listen(PORT);
-    console.log('server active ✅')
+    console.log('server active ✅');
     // duo mode opt
-    duo_mode ? exec(`start cmd /k "node app.ts "client_port=${server_port-1}"`) && console.log("duo mode active: local client active ✅") : null;
+    duo_mode ? exec(`start cmd /k "node app.ts "client_port=${server_port-1}" "client_hostname="localhost""`) && console.log("duo mode active: local client active ✅") : null;
 }
 import { readFileSync } from 'fs';
 /**
