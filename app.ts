@@ -520,7 +520,7 @@ class entry {
     }
 }
 import os from 'os';
-import { exec } from 'child_process';
+import { ChildProcess, exec } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 interface InstalledProgram {
@@ -807,19 +807,19 @@ function main() {
 function run() {
     // arg parser
     const ARGS = argParser.parseArgs();
-
+    console.log(ARGS)
     // server args
-    const SERVER_PORT: number = parseInt(JSON.stringify(ARGS.port)) || 45698;
-    const SERVER_HOSTNAME: string = JSON.stringify(ARGS.server_hostname) || "localhost";
-    const SERVER_STARTUP_MSG: string = JSON.stringify(ARGS.start_server_msg) || "cool beans";
-    const SCAN_FOR_CLIENTS: boolean = JSON.stringify(ARGS.port_scan_for_clients) ? true : false;
-    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(JSON.stringify(ARGS.periodic_update_time_msec)) || 5000; // NYI
-    const DUO_MODE: boolean = JSON.stringify(ARGS.duo_mode) ? true : false; // NYI
+    const SERVER_PORT: number = parseInt(ARGS.port) || 45698;
+    const SERVER_HOSTNAME: string = ARGS.server_hostname || "localhost";
+    const SERVER_STARTUP_MSG: string = ARGS.start_server_msg || "cool beans";
+    const SCAN_FOR_CLIENTS: boolean = ARGS.port_scan_for_clients ? true : false;
+    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(ARGS.periodic_update_time_msec) || 5000; // NYI
+    const DUO_MODE: boolean = ARGS["--duo_mode"] ? true : false; // NYI
 
     // client args
-    const CLIENT_PORT = parseInt(JSON.stringify(ARGS.client_port)) || 45697;
-    const CLIENT_HOSTNAME = JSON.stringify(ARGS.client_hostname) || "localhost";
-    const CLIENT_ID = JSON.stringify(ARGS.client_id) || ipInfo.getIP() || "localhost";
+    const CLIENT_PORT = parseInt(ARGS.client_port) || 45697;
+    const CLIENT_HOSTNAME = ARGS.client_hostname || "localhost";
+    const CLIENT_ID = ARGS.client_id || ipInfo.getIP() || "localhost";
     
     // launch application
     process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS, DUO_MODE) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
@@ -842,7 +842,7 @@ function host_client(client_port: number, client_hostname: string, client_id: st
  * Runs application as a server
  */
 function host_server(server_port: number, server_hostname: string, server_startup_msg: string, scan_for_clients: boolean, duo_mode: boolean) {
-    console.log({server_port:server_port, server_hostname: server_hostname, server_startup_msg: server_startup_msg, scan_for_clients:scan_for_clients})
+    console.log({server_port:server_port, server_hostname: server_hostname, server_startup_msg: server_startup_msg, scan_for_clients:scan_for_clients, DUO_MODE: duo_mode})
     // server setup
     const PORT = server_port;
     const server = new myServer(PORT); // abstraction
@@ -859,7 +859,7 @@ function host_server(server_port: number, server_hostname: string, server_startu
     server.listen(PORT);
     console.log('server active ✅')
     // duo mode opt
-    duo_mode ? host_client(server_port-1, "localhost", "localhost") : null;
+    duo_mode ? exec(`start cmd /k "node app.ts "client_port=${server_port-1}"`) && console.log("duo mode active: local client active ✅") : null;
 }
 import { readFileSync } from 'fs';
 /**
