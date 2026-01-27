@@ -615,7 +615,7 @@ import { input, select } from '@inquirer/prompts';
 class setupHelper {
     private static async setUpCLI(level: number) {
         // cancel
-        if (level < 0) return {type:"", url: ""};
+        if (level > 0) return {type:"", url: ""};
         // quick setup
         const $type = await select({
         message: 'Choose Wether this is a client device or the server:',
@@ -649,16 +649,72 @@ class setupHelper {
         ],
         }) : "";
         const $url = $question1 === 'Y' ? await input({ message: 'Enter the hostname/IP of server' }): "" ;
-        if (level < 1) return {type: $type, url:$url};
+        if (level > 1) return {type: $type, url:$url};
         // advanced setup
-        if (level < 2) return {type: $type, url:$url};
+        const $SERVER_STARTUP_MSG: string = await input({ message: 'Enter server startup message' });
+        const $PERIODIC_UPDATE: number = await select({
+        message: 'Choose interval for sending bluk info to server:',
+        choices: [
+            {
+            name: '1 second',
+            value: 1000,
+            description: '1 second | 1000 miliseconds'
+            },
+            {
+            name: '5 seconds',
+            value: 5000,
+            description: '5 seconds | 5000 miliseconds'
+            },
+            {
+            name: '10 seconds',
+            value: 10000,
+            description: '10 seconds | 10000 miliseconds'
+            },
+            {
+            name: '15 seconds',
+            value: 15000,
+            description: '15 seconds | 15000 miliseconds'
+            },
+            {
+            name: '30 seconds',
+            value: 30000,
+            description: '30 seconds | 30000 miliseconds'
+            }, 
+        ],
+        })
+        
+        if (level > 2) return {type: $type, url:$url, SERVER_STARTUP_MSG:$SERVER_STARTUP_MSG, PERIODIC_UPDATE:$PERIODIC_UPDATE};
         // manual setup
+        const $DUO_MODE: boolean = await select({
+        message: 'Run Server in DUO mode (no effect if running a client):',
+        choices: [
+            {
+            name: 'yes',
+            value: true,
+            description: 'yes'
+            },
+            {
+            name: 'no',
+            value: false,
+            description: 'no'
+            }
+        ],
+        })
+        return {
+            type: $type, 
+            url:$url, 
+            SERVER_STARTUP_MSG:$SERVER_STARTUP_MSG,
+            PERIODIC_UPDATE:$PERIODIC_UPDATE, 
+            DUO_MODE: $DUO_MODE};
     }
-    private static async write($type?: string, $url?:string) {
+    private static async write($type?: string, $url?:string, $SERVER_STARTUP_MSG?: string, $PERIODIC_UPDATE?: number, $DUO_MODE?: boolean) {
         await fs.writeFile('./app-config.json', JSON.stringify(
             {
                 type: $type,
-                url: $url
+                url: $url,
+                SERVER_STARTUP_MSG: $SERVER_STARTUP_MSG,
+                PERIODIC_UPDATE: $PERIODIC_UPDATE,
+                DUO_MODE:$DUO_MODE
             }
         ));
     }
@@ -667,7 +723,7 @@ class setupHelper {
      * WORK IN PROGRESS
      */
     public static async fastSetupCLI() {
-        const config_values = await this.setUpCLI(0);
+        const config_values = await this.setUpCLI(1);
         await this.write(config_values?.type, config_values?.url);
     }
     /**
@@ -675,16 +731,16 @@ class setupHelper {
      * WORK IN PROGRESS
      */
     public static async advancedSetupCLI() {
-        const config_values = await this.setUpCLI(0);
-        await this.write(config_values?.type, config_values?.url);        
+        const config_values = await this.setUpCLI(2);
+        await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE);        
     }
     /**
      * place holder until until I get to having an interface to set all possible options (full control)
      * WORK IN PROGRESS
      */
     public static async manualSetupCLI() {
-        const config_values = await this.setUpCLI(0);
-        await this.write(config_values?.type, config_values?.url);
+        const config_values = await this.setUpCLI(3);
+        await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE);
     }
 }
 /**
