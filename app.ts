@@ -822,7 +822,7 @@ function run() {
     const CLIENT_ID = JSON.stringify(ARGS.client_id) || ipInfo.getIP() || "localhost";
     
     // launch application
-    process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
+    process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS, DUO_MODE) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
     return ;
 }
 /**
@@ -835,11 +835,13 @@ function host_client(client_port: number, client_hostname: string, client_id: st
     const client_device = new client(PORT, client_hostname, client_id);
     const http_server = client_device.listen(); // get the underlying http server
     console.log('client active ✅');
+    
+    
 }
 /**
  * Runs application as a server
  */
-function host_server(server_port: number, server_hostname: string, server_startup_msg: string, scan_for_clients: boolean) {
+function host_server(server_port: number, server_hostname: string, server_startup_msg: string, scan_for_clients: boolean, duo_mode: boolean) {
     console.log({server_port:server_port, server_hostname: server_hostname, server_startup_msg: server_startup_msg, scan_for_clients:scan_for_clients})
     // server setup
     const PORT = server_port;
@@ -856,6 +858,8 @@ function host_server(server_port: number, server_hostname: string, server_startu
     // start listening for conns to server
     server.listen(PORT);
     console.log('server active ✅')
+    // duo mode opt
+    duo_mode ? host_client(server_port-1, "localhost", "localhost") : null;
 }
 import { readFileSync } from 'fs';
 /**
