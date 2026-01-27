@@ -846,7 +846,7 @@ function run() {
 
     // client args
     const CLIENT_PORT = parseInt(String(ARGS.client_port)) || 45697;
-    const CLIENT_HOSTNAME = ARGS.client_hostname || "";
+    const CLIENT_HOSTNAME = String(ARGS.client_hostname) || "";
     const CLIENT_ID = ARGS.client_id || ipInfo.getIP() || "localhost";
     
     // launch application
