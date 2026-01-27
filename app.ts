@@ -284,7 +284,8 @@ class socket {
                 const message = JSON.parse(event.data);
                 console.log('WS message recieved:', message);
                 if (message.message === 'Periodic-Update') throw error; // not a periodic update request
-                const installed_programs = await systemInfo.getInstalledPrograms()
+                const installed_programs = await systemInfo.getInstalledPrograms();
+                const disk_info = await systemInfo.getDiskInfo();
                 this.ws.send(JSON.stringify(
                     {
                         client_id: client_id, 
@@ -295,8 +296,9 @@ class socket {
                             memory: {
                             total: {bytes: systemInfo.getTotalMemory(), gb: systemInfo.getTotalMemory()/ Math.pow(1024, 3)},
                             free: {bytes: systemInfo.getFreeMemory(), gb: systemInfo.getTotalMemory() / Math.pow(1024, 3)},
-                            os:systemInfo.getOS(),
-                            storage:systemInfo.getStorage()
+                            disk: systemInfo.getDiskInfo(),
+                            os: systemInfo.getOS(),
+                            storage: disk_info
                             },
                         },
                         data: installed_programs
@@ -542,10 +544,36 @@ class systemInfo {
     }
     /**
      * Not implemented yet
+     * Use getDiskInfo as alternative
      * @returns a message saying its not implemented
      */
     public static getStorage() {
         return "not yet implemented";
+    }
+    /**
+     * T
+     * @returns 
+     */
+    public static async getDiskInfo() {
+        try {
+            const { stdout } = await execAsync(
+                `powershell "Get-CimInstance Win32_DiskDrive | Select-Object Model, SerialNumber, Size | ConvertTo-Json -Depth 4"`
+            );
+            let disks = JSON.parse(stdout.trim());
+
+            if (!Array.isArray(disks)) {
+                disks = [disks];
+            }
+
+            return disks.map((d: any) => ({
+                object_model: d.Model?.trim() ?? null,
+                serialNumber: d.SerialNumber?.trim() ?? null,
+                size: d.Size ? Number(d.Size) : null
+            }));
+        } catch (err) {
+            console.error("failed to read disk:", err);
+            return [];
+        }
     }
     /**
      * gets installed programs 
