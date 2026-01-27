@@ -643,7 +643,7 @@ import { input, select } from '@inquirer/prompts';
 class setupHelper {
     private static async setUpCLI(level: number) {
         // cancel
-        if (level > 0) return {type:"", url: ""};
+        if (level < 0) return {type:"", url: ""};
         // quick setup
         const $type = await select({
         message: 'Choose Wether this is a client device or the server:',
@@ -676,54 +676,57 @@ class setupHelper {
             }
         ],
         }) : "";
-        const $url = $question1 === 'Y' ? await input({ message: 'Enter the hostname/IP of server' }): "" ;
-        if (level > 1) return {type: $type, url:$url};
+        const host: string = $question1 === 'Y' ? "--client_hostname=" : "--client_hostname=";
+        const url: string  = await input({ message: 'Enter the hostname/IP of server' });
+        const $url: string = host+url;
+        console.log($url)
+        if (level < 1) return {type: $type, url:$url};
         // advanced setup
         const $SERVER_STARTUP_MSG: string = await input({ message: 'Enter server startup message' });
-        const $PERIODIC_UPDATE: number = await select({
+        const $PERIODIC_UPDATE: string = await select({
         message: 'Choose interval for sending bluk info to server:',
         choices: [
             {
             name: '1 second',
-            value: 1000,
+            value: "--periodic_update_time_msec=1000",
             description: '1 second | 1000 miliseconds'
             },
             {
             name: '5 seconds',
-            value: 5000,
+            value: "--periodic_update_time_msec=5000",
             description: '5 seconds | 5000 miliseconds'
             },
             {
             name: '10 seconds',
-            value: 10000,
+            value: "--periodic_update_time_msec=10000",
             description: '10 seconds | 10000 miliseconds'
             },
             {
             name: '15 seconds',
-            value: 15000,
+            value: "--periodic_update_time_msec=15000",
             description: '15 seconds | 15000 miliseconds'
             },
             {
             name: '30 seconds',
-            value: 30000,
+            value: "--periodic_update_time_msec=30000",
             description: '30 seconds | 30000 miliseconds'
             }, 
         ],
         })
         
-        if (level > 2) return {type: $type, url:$url, SERVER_STARTUP_MSG:$SERVER_STARTUP_MSG, PERIODIC_UPDATE:$PERIODIC_UPDATE};
+        if (level < 2) return {type: $type, url:$url, SERVER_STARTUP_MSG:$SERVER_STARTUP_MSG, PERIODIC_UPDATE:$PERIODIC_UPDATE};
         // manual setup
-        const $DUO_MODE: boolean = await select({
+        const $DUO_MODE: string = await select({
         message: 'Run Server in DUO mode (no effect if running a client):',
         choices: [
             {
             name: 'yes',
-            value: true,
+            value: "--duo_mode",
             description: 'yes'
             },
             {
             name: 'no',
-            value: false,
+            value: "",
             description: 'no'
             }
         ],
@@ -735,7 +738,7 @@ class setupHelper {
             PERIODIC_UPDATE:$PERIODIC_UPDATE, 
             DUO_MODE: $DUO_MODE};
     }
-    private static async write($type?: string, $url?:string, $SERVER_STARTUP_MSG?: string, $PERIODIC_UPDATE?: number, $DUO_MODE?: boolean) {
+    private static async write($type?: string, $url?:string, $SERVER_STARTUP_MSG?: string, $PERIODIC_UPDATE?: string, $DUO_MODE?: string) {
         await fs.writeFile('./app-config.json', JSON.stringify(
             {
                 type: $type,
@@ -751,7 +754,7 @@ class setupHelper {
      * WORK IN PROGRESS
      */
     public static async fastSetupCLI() {
-        const config_values = await this.setUpCLI(1);
+        const config_values = await this.setUpCLI(0);
         await this.write(config_values?.type, config_values?.url);
     }
     /**
@@ -759,7 +762,7 @@ class setupHelper {
      * WORK IN PROGRESS
      */
     public static async advancedSetupCLI() {
-        const config_values = await this.setUpCLI(2);
+        const config_values = await this.setUpCLI(1);
         await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE);        
     }
     /**
@@ -767,8 +770,8 @@ class setupHelper {
      * WORK IN PROGRESS
      */
     public static async manualSetupCLI() {
-        const config_values = await this.setUpCLI(3);
-        await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE);
+        const config_values = await this.setUpCLI(2);
+        await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE, config_values?.DUO_MODE);
     }
 }
 /**
@@ -820,7 +823,7 @@ class argParser {
  * (if both --server and --client are present, --server superceeds --client)
  * @argument --config (runs setup wizard superceeding all above arguments)
  */
-function main() {
+async function main() {
     if (process.argv.includes('--config')) {
         run_setup_wizard();
         return ;
@@ -837,17 +840,17 @@ function run() {
     const ARGS = argParser.parseArgs();
     console.log(ARGS)
     // server args
-    const SERVER_PORT: number = parseInt(String(ARGS.port)) || 45698;
-    const SERVER_HOSTNAME: string = String(ARGS.server_hostname) || "localhost";
-    const SERVER_STARTUP_MSG: string = String(ARGS.start_server_msg) || "cool beans";
-    const SCAN_FOR_CLIENTS: boolean = ARGS["port_scan_for_clients"] ? true : false;
-    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(String(ARGS.periodic_update_time_msec)) || 5000; // NYI
+    const SERVER_PORT: number = parseInt(String(ARGS["--port"])) || 45698;
+    const SERVER_HOSTNAME: string = String(ARGS["--server_hostname"]) || "localhost";
+    const SERVER_STARTUP_MSG: string = String(ARGS["--start_server_msg"]) || "cool beans";
+    const SCAN_FOR_CLIENTS: boolean = ARGS["--port_scan_for_clients"] ? true : false;
+    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(String(ARGS["--periodic_update_time_msec"])) || 5000; // NYI
     const DUO_MODE: boolean = ARGS["--duo_mode"] ? true : false; // NYI
 
     // client args
     const CLIENT_PORT = parseInt(String(ARGS.client_port)) || 45697;
-    const CLIENT_HOSTNAME = String(ARGS.client_hostname) || "";
-    const CLIENT_ID = ARGS.client_id || ipInfo.getIP() || "localhost";
+    const CLIENT_HOSTNAME = String(ARGS["--client_hostname"]) || "";
+    const CLIENT_ID = ARGS["--client_id"] || ipInfo.getIP() || "localhost";
     
     // launch application
     process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS, DUO_MODE) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
