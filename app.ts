@@ -1,3 +1,4 @@
+/* ################### NETWORKING LEVEL ################### */
 import express from 'express';
 import WebSocket, { WebSocketServer } from 'ws';
 /**
@@ -27,12 +28,22 @@ class myServer {
         const line: entry = new entry("server_id", "db_log","init_server");
         this.db.store_entry(line);
     }
+    /**
+     * Start listening for connections to the server on a specified port
+     * @param port port to listen on
+     */
     public listen(port: number) {
         const server = this.express.listen(port);
         this.setUpWSS(server); // setup WSS using server made by express
         }
     public app(): express.Express {
         return this.express;
+    }
+    /** 
+     * @returns database associated with server instance
+     */
+    public getdb() {
+        return this.db;
     }
     private setUpWSS(server: Server) {
         // store vars to access in wss
@@ -319,7 +330,13 @@ class ipInfo {
     ip: string;
     constructor() {
         this.ip = this.getDeviceIP();
+    }
+    public static getIP() {
+        return new ipInfo().getIp()
     }    
+    public getIp() {
+        return this.ip;
+    }
     private getDeviceIP(): string {
         const interfaces = networkInterfaces();
         let x = { address: '', family: '', mac: '', netmask: '' };
@@ -361,7 +378,7 @@ class ipInfo {
     return `ws://${addr}:${port}`;
 }
 }
-
+/* ################### SYSTEM LEVEL ################### */
 /**
  * Mange installed on clients
  */
@@ -505,7 +522,7 @@ class entry {
     }
 }
 import os from 'os';
-import { exec } from 'child_process';
+import { ChildProcess, exec } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 interface InstalledProgram {
@@ -618,6 +635,7 @@ class systemInfo {
         }
     }
 }
+/* ################### CONFIGURATION/SETUP LEVEL ################### */
 import { input, select } from '@inquirer/prompts';
 /**
  * Wizard for setting up environment
@@ -625,7 +643,7 @@ import { input, select } from '@inquirer/prompts';
 class setupHelper {
     private static async setUpCLI(level: number) {
         // cancel
-        if (level < 0) return {type:"", url: ""};
+        if (level > 0) return {type:"", url: ""};
         // quick setup
         const $type = await select({
         message: 'Choose Wether this is a client device or the server:',
@@ -659,16 +677,72 @@ class setupHelper {
         ],
         }) : "";
         const $url = $question1 === 'Y' ? await input({ message: 'Enter the hostname/IP of server' }): "" ;
-        if (level < 1) return {type: $type, url:$url};
+        if (level > 1) return {type: $type, url:$url};
         // advanced setup
-        if (level < 2) return {type: $type, url:$url};
+        const $SERVER_STARTUP_MSG: string = await input({ message: 'Enter server startup message' });
+        const $PERIODIC_UPDATE: number = await select({
+        message: 'Choose interval for sending bluk info to server:',
+        choices: [
+            {
+            name: '1 second',
+            value: 1000,
+            description: '1 second | 1000 miliseconds'
+            },
+            {
+            name: '5 seconds',
+            value: 5000,
+            description: '5 seconds | 5000 miliseconds'
+            },
+            {
+            name: '10 seconds',
+            value: 10000,
+            description: '10 seconds | 10000 miliseconds'
+            },
+            {
+            name: '15 seconds',
+            value: 15000,
+            description: '15 seconds | 15000 miliseconds'
+            },
+            {
+            name: '30 seconds',
+            value: 30000,
+            description: '30 seconds | 30000 miliseconds'
+            }, 
+        ],
+        })
+        
+        if (level > 2) return {type: $type, url:$url, SERVER_STARTUP_MSG:$SERVER_STARTUP_MSG, PERIODIC_UPDATE:$PERIODIC_UPDATE};
         // manual setup
+        const $DUO_MODE: boolean = await select({
+        message: 'Run Server in DUO mode (no effect if running a client):',
+        choices: [
+            {
+            name: 'yes',
+            value: true,
+            description: 'yes'
+            },
+            {
+            name: 'no',
+            value: false,
+            description: 'no'
+            }
+        ],
+        })
+        return {
+            type: $type, 
+            url:$url, 
+            SERVER_STARTUP_MSG:$SERVER_STARTUP_MSG,
+            PERIODIC_UPDATE:$PERIODIC_UPDATE, 
+            DUO_MODE: $DUO_MODE};
     }
-    private static async write($type?: string, $url?:string) {
+    private static async write($type?: string, $url?:string, $SERVER_STARTUP_MSG?: string, $PERIODIC_UPDATE?: number, $DUO_MODE?: boolean) {
         await fs.writeFile('./app-config.json', JSON.stringify(
             {
                 type: $type,
-                url: $url
+                url: $url,
+                SERVER_STARTUP_MSG: $SERVER_STARTUP_MSG,
+                PERIODIC_UPDATE: $PERIODIC_UPDATE,
+                DUO_MODE:$DUO_MODE
             }
         ));
     }
@@ -677,26 +751,68 @@ class setupHelper {
      * WORK IN PROGRESS
      */
     public static async fastSetupCLI() {
-        const config_values = await this.setUpCLI(0);
-        this.write(config_values?.type, config_values?.url);
+        const config_values = await this.setUpCLI(1);
+        await this.write(config_values?.type, config_values?.url);
     }
     /**
      * placeholder for setup with more options and buttons to customize (lot of control)
      * WORK IN PROGRESS
      */
     public static async advancedSetupCLI() {
-        const config_values = await this.setUpCLI(0);
-        this.write(config_values?.type, config_values?.url);        
+        const config_values = await this.setUpCLI(2);
+        await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE);        
     }
     /**
      * place holder until until I get to having an interface to set all possible options (full control)
      * WORK IN PROGRESS
      */
     public static async manualSetupCLI() {
-        const config_values = await this.setUpCLI(0);
-        this.write(config_values?.type, config_values?.url);
+        const config_values = await this.setUpCLI(3);
+        await this.write(config_values?.type, config_values?.url, config_values?.SERVER_STARTUP_MSG, config_values?.PERIODIC_UPDATE);
     }
 }
+/**
+ * class for manipulating args from the process namesapce
+ */
+class argParser {
+    /**
+     * T
+     * @returns 
+     */
+    public static parseArgs() {
+        const args: Record<string, string | boolean> = {};
+        const raw = process.argv.slice(2);
+
+        for (let i = 0; i < raw.length; i++) {
+            const el = raw[i];
+
+            // Case: --key=value
+            if (el.includes("=")) {
+                const [key, value] = el.split("=");
+                args[key] = value;
+                continue;
+            }
+
+            // Case: --key value
+            if (el.startsWith("--")) {
+                const key = el;
+                const next = raw[i + 1];
+
+                if (next && !next.startsWith("--")) {
+                    args[key] = next;
+                    i++;
+                } else {
+                    args[key] = true;
+                }
+
+                continue;
+            }
+        }
+
+        return args;
+    }
+}
+/* ################### RUN LEVEL ################### */
 /**
  * Start Quick Application Managemetn System (QAMS)
  * @argument --server (runs server application)
@@ -712,34 +828,66 @@ function main() {
     run();
     return ;
 }
+/**
+ * Runs Device application management system and applies args
+ * @returns void
+ */
 function run() {
-    process.argv.includes('--server') ? host_server() : host_client();
+    // arg parser
+    const ARGS = argParser.parseArgs();
+    console.log(ARGS)
+    // server args
+    const SERVER_PORT: number = parseInt(ARGS.port) || 45698;
+    const SERVER_HOSTNAME: string = ARGS.server_hostname || "localhost";
+    const SERVER_STARTUP_MSG: string = ARGS.start_server_msg || "cool beans";
+    const SCAN_FOR_CLIENTS: boolean = ARGS.port_scan_for_clients ? true : false;
+    const PERIODIC_UPDATE_TIME_MSEC: number = parseInt(ARGS.periodic_update_time_msec) || 5000; // NYI
+    const DUO_MODE: boolean = ARGS["--duo_mode"] ? true : false; // NYI
+
+    // client args
+    const CLIENT_PORT = parseInt(ARGS.client_port) || 45697;
+    const CLIENT_HOSTNAME = ARGS.client_hostname || "localhost";
+    const CLIENT_ID = ARGS.client_id || ipInfo.getIP() || "localhost";
+    
+    // launch application
+    process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS, DUO_MODE) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
     return ;
 }
 /**
  * Runs application as a client
  */
-function host_client() {
-    const PORT = 45697; // should be one less than server port
+function host_client(client_port: number, client_hostname: string, client_id: string) {
+    console.log({CLIENT_PORT:client_port, CLIENT_HOSTNAME:client_hostname, CLIENT_ID:client_id})
+    const PORT = client_port; // should be one less than server port
     // client
-    const client_device = new client(PORT, "localhost", "localhost");
+    const client_device = new client(PORT, client_hostname, client_id);
     const http_server = client_device.listen(); // get the underlying http server
+    console.log('client active ✅');
+    
+    
 }
 /**
  * Runs application as a server
  */
-function host_server() {
-    const PORT = 45698;
+function host_server(server_port: number, server_hostname: string, server_startup_msg: string, scan_for_clients: boolean, duo_mode: boolean) {
+    console.log({server_port:server_port, server_hostname: server_hostname, server_startup_msg: server_startup_msg, scan_for_clients:scan_for_clients, DUO_MODE: duo_mode})
+    // server setup
+    const PORT = server_port;
     const server = new myServer(PORT); // abstraction
     const app = server.app(); // express itself
-    
-    server.get("cool beans");
+    server.get(server_startup_msg); // message seen on server conn get(/) page
     // scan for clients
     const IP_SCAN_RANGE = new ipInfo().getLocalPrefix();
-    console.log(`address in block ${IP_SCAN_RANGE[0]}.${IP_SCAN_RANGE[1]}.${IP_SCAN_RANGE[2]}.1 - 255`);
-    // server.scanForClients(IP_SCAN_RANGE[0], IP_SCAN_RANGE[1], IP_SCAN_RANGE[2], 1, PORT);
-
+    // port scan LAN for clients
+    if (scan_for_clients) {
+        console.log(`address in block ${IP_SCAN_RANGE[0]}.${IP_SCAN_RANGE[1]}.${IP_SCAN_RANGE[2]}.1 - 255`);
+        server.scanForClients(IP_SCAN_RANGE[0], IP_SCAN_RANGE[1], IP_SCAN_RANGE[2], 1, PORT);
+    }
+    // start listening for conns to server
     server.listen(PORT);
+    console.log('server active ✅')
+    // duo mode opt
+    duo_mode ? exec(`start cmd /k "node app.ts "client_port=${server_port-1}"`) && console.log("duo mode active: local client active ✅") : null;
 }
 import { readFileSync } from 'fs';
 /**
@@ -761,6 +909,7 @@ async function run_setup_wizard() {
        console.log(process.argv)
        // run application
         run();
+        return ;
     }
     if (process.argv.includes('--as')) {
         // setup CLI
@@ -774,6 +923,7 @@ async function run_setup_wizard() {
        console.log(process.argv)
        // run application
        run();
+       return ;
     }
     if (process.argv.includes('--ms')) {
         // setup CLI
@@ -787,7 +937,9 @@ async function run_setup_wizard() {
        console.log(process.argv);
        // run application
        run();
+       return ;
     }
+    console.log('setup mode not specified, use --qs, --as, --ms with --config\nExiting...');
     return ;
 }
 main(); // run application
