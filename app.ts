@@ -6,7 +6,7 @@ import WebSocket, { WebSocketServer } from 'ws';
  */
 class myServer {
     express: express.Express;
-    clients: client[] = [];
+    clients: clientConn[] = [];
     client_count: number = 0;
     wss: WebSocketServer | undefined; // webSocketServer
     port: number;
@@ -33,7 +33,7 @@ class myServer {
      * @param port port to listen on
      */
     public listen(port: number) {
-        const server = this.express.listen(port);
+        const server = this.express.listen(port, '0.0.0.0');
         this.setUpWSS(server); // setup WSS using server made by express
         }
     public app(): express.Express {
@@ -98,7 +98,7 @@ class myServer {
             }
             // TODO make it so that only when a client visits the page does it count as being added
             this.client_count++;
-            this.clients.push(new client(this.port-1, (req.ip ?? 'unknown').toString(), `client_${this.client_count}`));
+            this.clients.push(new clientConn(this.port-1, (req.ip ?? 'unknown').toString(), `client_${this.client_count}`, `client_${this.client_count}`));
             res.send(
                 `
                 <html>
@@ -132,11 +132,51 @@ class myServer {
             fetch(`http://${ip}:${port}/`).then((res) => {
                 if (res.ok) {
                     console.log(`Client found at ${ip}:${port}`);
-                    this.clients.push(new client(port, ip, `client_${this.clients.length + 1}`));
+                    this.clients.push(new clientConn(port, ip, `client_${this.clients.length + 1}`, `client_${this.client_count}`));
                 }
             }).catch((err) => {
                 console.log(`No client at ${ip}:${port}`);
             });
+        }
+    }
+}
+/**
+ * container for interacting with clients over the network
+ */
+class clientConn {
+    port: number;
+    ip: string;
+    id: string;
+    hostname: string;
+    message_counter: number = 0;
+    message_id: string;
+    constructor(port: number, ip: string, hostname: string, id: string) {
+        this.port = port;
+        this.ip = ip;
+        this.hostname = hostname;
+        this.id=id
+        this.message_id = this.getMessage_id();
+    }
+    private getMessage_id() {
+        return (this.ip+this.hostname+this.message_counter);
+    }
+    /**
+     * get header to indentify client
+     * @returns 
+     */
+    public getMessageHeader() {
+        return {
+            port: this.port,
+            ip: this.ip,
+            name: this.hostname
+        };
+    }
+    public createMessage(data: {}) {
+        this.message_counter++;
+        return {
+            message_id: this.getMessage_id(),
+            headers: this.getMessageHeader(),
+            payload: data
         }
     }
 }
@@ -635,6 +675,123 @@ class systemInfo {
         }
     }
 }
+/* ################### VIEWS/TEMPALTING LEVEL ################### */ 
+/**\
+ * String templates server hosted pages
+ */
+class viewTemplate {
+    standard: string =
+    `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            background: #grey;
+            color: #222;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 5px;
+            font-size: 2rem;
+            color: #333;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 25px;
+            font-weight: 400;
+            color: #555;
+        }
+
+        #main {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 10px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+
+        .container:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .container h3 {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            color: #444;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 6px;
+        }
+
+        p {
+            color: #666;
+            font-size: .95rem;
+        }
+    `;
+    database: db;
+    constructor(database: db) {
+        this.database = database;
+    }
+    public async dashview() {
+        const rows = JSON.stringify(await this.database.select()).split('\n');
+        const style = this.standard;
+        const view: string =
+        `
+        <html>
+        <header>
+            <style>
+            ${style}
+            </style>
+        </header>
+        <body>
+        <div>
+            <h1>Device Application Management System</h1>
+            <h2>Dash-Board</h2>
+        </div>
+        <div id="main">
+            <div class="container">
+                <h3>Device</h3>
+                ${rows}
+                <p>NYI</p>
+            </div>
+             <div class="container">
+                <h3>Approved Applications</h3>
+                <!-- content here -->
+                <p>NYI</p>
+            </div>
+             <div class="container">
+                <h3>Tools</h3>
+                <!-- content here -->
+                <p>NYI</p>
+            </div>
+             <div class="container">
+                <h3>All Applications</h3>
+                <!-- content here -->
+                <p>NYI</p>
+            </div>
+        </div>
+        </body>
+        </html>
+        `;
+        return view;
+    }
+}
 /* ################### CONFIGURATION/SETUP LEVEL ################### */
 import { input, select } from '@inquirer/prompts';
 /**
@@ -682,7 +839,8 @@ class setupHelper {
         console.log($url)
         if (level < 1) return {type: $type, url:$url};
         // advanced setup
-        const $SERVER_STARTUP_MSG: string = await input({ message: 'Enter server startup message' });
+        const SERVER_STARTUP_MSG: string = await input({ message: 'Enter server startup message' });
+        const $SERVER_STARTUP_MSG = "--server_startup_msg="+SERVER_STARTUP_MSG;
         const $PERIODIC_UPDATE: string = await select({
         message: 'Choose interval for sending bluk info to server:',
         choices: [
@@ -850,7 +1008,7 @@ function run() {
     // client args
     const CLIENT_PORT = parseInt(String(ARGS.client_port)) || 45697;
     const CLIENT_HOSTNAME = String(ARGS["--client_hostname"]) || "";
-    const CLIENT_ID = ARGS["--client_id"] || ipInfo.getIP() || "localhost";
+    const CLIENT_ID = String(ARGS["--client_id"]) || ipInfo.getIP() || "localhost";
     
     // launch application
     process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS, DUO_MODE) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
@@ -879,6 +1037,12 @@ function host_server(server_port: number, server_hostname: string, server_startu
     const server = new myServer(PORT); // abstraction
     const app = server.app(); // express itself
     server.get(server_startup_msg); // message seen on server conn get(/) page
+    const TEMPLATE = new viewTemplate(server.db)
+    // add-ons
+    app.get('/dash-view', async (req, res) =>{
+        res.send(await TEMPLATE.dashview());
+    });
+
     // scan for clients
     const IP_SCAN_RANGE = new ipInfo().getLocalPrefix();
     // port scan LAN for clients
@@ -886,6 +1050,7 @@ function host_server(server_port: number, server_hostname: string, server_startu
         console.log(`address in block ${IP_SCAN_RANGE[0]}.${IP_SCAN_RANGE[1]}.${IP_SCAN_RANGE[2]}.1 - 255`);
         server.scanForClients(IP_SCAN_RANGE[0], IP_SCAN_RANGE[1], IP_SCAN_RANGE[2], 1, PORT);
     }
+    
     // start listening for conns to server
     server.listen(PORT);
     console.log('server active ✅');
