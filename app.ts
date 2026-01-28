@@ -691,7 +691,7 @@ class viewTemplate {
 
         body {
             background: #grey;
-            color: #222;
+            color: #black;
             padding: 20px;
         }
 
@@ -699,14 +699,14 @@ class viewTemplate {
             text-align: center;
             margin-bottom: 5px;
             font-size: 2rem;
-            color: #333;
+            color: #black;
         }
 
         h2 {
             text-align: center;
             margin-bottom: 25px;
             font-weight: 400;
-            color: #555;
+            color: #grey;
         }
 
         #main {
@@ -734,13 +734,13 @@ class viewTemplate {
         .container h3 {
             margin-bottom: 10px;
             font-size: 1.2rem;
-            color: #444;
+            color: #grey;
             border-bottom: 1px solid #ddd;
             padding-bottom: 6px;
         }
 
         p {
-            color: #666;
+            color: #grey;
             font-size: .95rem;
         }
     `;
@@ -749,48 +749,152 @@ class viewTemplate {
         this.database = database;
     }
     public async dashview() {
-        const rows = JSON.stringify(await this.database.select()).split('\n');
-        const style = this.standard;
-        const view: string =
-        `
-        <html>
-        <header>
-            <style>
-            ${style}
-            </style>
-        </header>
-        <body>
+    const devices = await this.database.select("hello");
+    const approved = await this.database.select("approved_apps");
+    const allApps = await this.database.select("all_apps");
+
+    const style = this.standard;
+
+    // DEVICE LIST
+    let deviceList = "";
+    devices.forEach(d => {
+        deviceList += `<li>${d.id}</li>`;
+    });
+
+    // APPROVED APPS LIST
+    let approvedList = "";
+    approved.forEach(app => {
+        approvedList += `
+            <li>
+                ${app.id}
+                <form action="/unapprove" method="POST" style="display:inline;">
+                    <input type="hidden" name="app" value="${app.id}">
+                    <button class="small danger">Unapprove</button>
+                </form>
+            </li>
+        `;
+    });
+
+    // ALL APPS LIST
+    let allAppsList = "";
+    allApps.forEach(app => {
+        allAppsList += `
+            <li>
+                ${app.id}
+                <form action="/approve" method="POST" style="display:inline;">
+                    <input type="hidden" name="app" value="${app.id}">
+                    <button class="small">Approve</button>
+                </form>
+            </li>
+        `;
+    });
+
+    const view = `
+    <html>
+    <header>
+        <style>
+        ${style}
+
+        button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            background: #0078ff;
+            color: white;
+            cursor: pointer;
+            font-size: .9rem;
+        }
+
+        button:hover {
+            background: #005fcc;
+        }
+
+        button.small {
+            padding: 4px 8px;
+            font-size: .8rem;
+        }
+
+        button.danger {
+            background: #d9534f;
+        }
+
+        button.danger:hover {
+            background: #b52b27;
+        }
+
+        .tool-btn {
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        </style>
+    </header>
+
+    <body>
         <div>
             <h1>Device Application Management System</h1>
             <h2>Dash-Board</h2>
         </div>
+
         <div id="main">
+
+            <!-- DEVICES -->
             <div class="container">
-                <h3>Device</h3>
-                ${rows}
-                <p>NYI</p>
+                <h3>Devices</h3>
+                <ul>${deviceList}</ul>
             </div>
-             <div class="container">
+
+            <!-- APPROVED APPS -->
+            <div class="container">
                 <h3>Approved Applications</h3>
-                <!-- content here -->
-                <p>NYI</p>
+
+                <form action="/add-approved" method="GET">
+                    <button class="tool-btn">Add Approved App</button>
+                </form>
+
+                <ul>
+                    ${approvedList || "<p>No approved apps yet.</p>"}
+                </ul>
             </div>
-             <div class="container">
+
+            <!-- TOOLS -->
+            <div class="container">
                 <h3>Tools</h3>
-                <!-- content here -->
-                <p>NYI</p>
+
+                <form action="/add-program" method="GET">
+                    <button class="tool-btn">Add Program</button>
+                </form>
+
+                <form action="/approve-programs" method="GET">
+                    <button class="tool-btn">Approve Programs</button>
+                </form>
+
+                <form action="/unapprove-programs" method="GET">
+                    <button class="tool-btn">Unapprove Programs</button>
+                </form>
             </div>
-             <div class="container">
+
+            <!-- ALL APPS -->
+            <div class="container">
                 <h3>All Applications</h3>
-                <!-- content here -->
-                <p>NYI</p>
+
+                <form action="/add-app" method="GET">
+                    <button class="tool-btn">Add New Application</button>
+                </form>
+
+                <ul>
+                    ${allAppsList || "<p>No applications found.</p>"}
+                </ul>
             </div>
+
         </div>
-        </body>
-        </html>
-        `;
-        return view;
-    }
+    </body>
+    </html>
+    `;
+
+    return view;
+}
 }
 /* ################### CONFIGURATION/SETUP LEVEL ################### */
 import { input, select } from '@inquirer/prompts';
@@ -1007,8 +1111,8 @@ function run() {
 
     // client args
     const CLIENT_PORT = parseInt(String(ARGS.client_port)) || 45697;
-    const CLIENT_HOSTNAME = String(ARGS["--client_hostname"]) || "";
-    const CLIENT_ID = String(ARGS["--client_id"]) || ipInfo.getIP() || "localhost";
+    const CLIENT_HOSTNAME = ipInfo.getIP() || String(ARGS["--client_hostname"]) || "";
+    const CLIENT_ID = ipInfo.getIP()|| String(ARGS["--client_id"])  || "localhost";
     
     // launch application
     process.argv.includes('--server') ? host_server(SERVER_PORT, SERVER_HOSTNAME, SERVER_STARTUP_MSG, SCAN_FOR_CLIENTS, DUO_MODE) : host_client(CLIENT_PORT, CLIENT_HOSTNAME, CLIENT_ID);
