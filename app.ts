@@ -894,7 +894,15 @@ class viewTemplate {
     `;
 
     return view;
-}
+    }
+    public async tools(type: string) {
+        return `
+        <html>
+        <h1>addprogram()=>${type} NYI</h1>
+        </html
+        `;
+    }
+
 }
 /* ################### CONFIGURATION/SETUP LEVEL ################### */
 import { input, select } from '@inquirer/prompts';
@@ -1146,7 +1154,23 @@ function host_server(server_port: number, server_hostname: string, server_startu
     app.get('/dash-view', async (req, res) =>{
         res.send(await TEMPLATE.dashview());
     });
-
+    // views
+    app.get('/add-program', async (req, res) => {
+        res.send(TEMPLATE.tools("?add-programs?"));
+    });
+    app.get('/approve-programs', async (req, res) => {
+        res.send(TEMPLATE.tools("?approve-programs?"));
+    });
+    app.get('/unapprove-programs', async (req, res) => {
+        res.send(TEMPLATE.tools("?unapprove-programs?"));
+    });
+    // actions
+    app.get('/add-approved', async (req, res) => {
+        res.send(TEMPLATE.tools("?add-approved?"));
+    });
+    app.get('/add-app', async (req, res) => {
+        res.send(TEMPLATE.tools("?add-app?"));
+    });
     // scan for clients
     const IP_SCAN_RANGE = new ipInfo().getLocalPrefix();
     // port scan LAN for clients
